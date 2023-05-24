@@ -472,12 +472,16 @@ def id(update, context):
     print(f"Chat ID is: {chat_id}")
 
 def recordatorio(contexto):
-  now = dt_time.strftime(dt_time.now(), "%I:%M %p")
-  contexto.bot.send_message(chat_id=-1001835769403, text="<b>ALERTA ⚠️\n\n</b>" + f"Son las {now}, recuerda verificar si todos los operarios fueron cargados en 10 minutos verificaré cuantos faltan por cargar", parse_mode='HTML')
+  global anti_join2 
+  now = datetime.now().strftime("%I:%M %p")
+  if anti_join2.empty == False:
+    contexto.bot.send_message(chat_id=-1001835769403, text="<b>ALERTA ⚠️\n\n</b>" + f"Son las {now}, recuerda verificar si todos los operarios fueron cargados en 10 minutos verificaré cuantos faltan por cargar", parse_mode='HTML')
+  else:
+     pass   
 def recordar(context):
   global anti_join
   global anti_join2
-  now = dt_time.strftime(dt_time.now(), "%I:%M %p")
+  now = datetime.now().strftime("%I:%M %p")
   if anti_join.empty == False and len(anti_join)< 15:
     titulo2 = "ALERTA ⚠️\n\n" + f"Son las {now}, y aún faltan operarios por cargar en la app. aqui te dejo el listado para que los carguen lo mas pronto posible"
     mensaje_incidencias = titulo2 + '\n\n'
@@ -527,11 +531,13 @@ if __name__=='__main__':
   job_queue = updater.job_queue
   job_queue.run_repeating(actualizar, interval=300, first=0)
   job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=16, minute=50, second=0))
-  job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=17, minute=0, second=40))
+  job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=17, minute=0, second=0))
   job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=18, minute=20, second=0))
-  job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=18, minute=30, second=40))
+  job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=18, minute=30, second=0))
   job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=19, minute=50, second=0))
-  job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=20, minute=0, second=40))
+  job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=20, minute=0, second=0))
+  job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=20, minute=50, second=0))
+  job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=21, minute=0, second=0))
   dp.add_error_handler(error)
   actualizar(contexto)
   job_queue.run_repeating(actualizar, interval=180, first=0)
