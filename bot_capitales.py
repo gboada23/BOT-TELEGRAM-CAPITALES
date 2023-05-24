@@ -3,7 +3,7 @@ from telegram.ext import Updater, CommandHandler, CallbackContext
 from datetime import datetime
 from credenciales import token,key, gc
 import logging
-import time
+from datetime import time as dt_time
 
 # Configurar el registro de errores
 logging.basicConfig(
@@ -467,11 +467,40 @@ def Bolsas(update, context):
               cell.value = group_df.iloc[cell.row - 2, cell.col - 1]
       worksheet.update_cells(cell_list)
   context.bot.send_message(chat_id=update.effective_chat.id, text=f'Archivo-Bolsa de Capitales generado correctamente para {longitud} operarios ✅\n\n' + 'Podras visualizarlo aqui:\n\n' + 'https://docs.google.com/spreadsheets/d/1DRqLb9o1ljsyCBV7h5loxl557rnjW_c_wiu0SeXfiVA/edit?usp=sharing')
+def id(update, context):
+    chat_id = update.effective_chat.id
+    print(f"Chat ID is: {chat_id}")
+
+def recordatorio(contexto):
+  now = dt_time.strftime(dt_time.now(), "%I:%M %p")
+  contexto.bot.send_message(chat_id=-1001835769403, text="<b>ALERTA ⚠️\n\n</b>" + f"Son las {now}, recuerda verificar si todos los operarios fueron cargados en 10 minutos verificaré cuantos faltan por cargar", parse_mode='HTML')
+def recordar(context):
+  global anti_join
+  global anti_join2
+  now = dt_time.strftime(dt_time.now(), "%I:%M %p")
+  if anti_join.empty == False and len(anti_join)< 15:
+    titulo2 = "ALERTA ⚠️\n\n" + f"Son las {now}, y aún faltan operarios por cargar en la app. aqui te dejo el listado para que los carguen lo mas pronto posible"
+    mensaje_incidencias = titulo2 + '\n\n'
+    for i in range(len(anti_join)):
+      FALTANTES = str((anti_join['OPERARIO'].iloc[i])) + ' ❌' + '\n'+ str((anti_join['REGIONAL'].iloc[i])) + '\n' + str((anti_join['AGENCIA'].iloc[i]))
+      mensaje_incidencias += FALTANTES + '\n\n'
+      context.bot.send_message(chat_id=-998948676, text=mensaje_incidencias)
+  elif anti_join.empty == False and len(anti_join)>= 15:
+    titulo2 = "ALERTA ⚠️\n\n" + f"Son las {now}, y aún faltan operarios por cargar en la app. aqui te dejo el listado para que los carguen lo mas pronto posible"
+    mensaje_incidencias = titulo2 + '\n\n'  
+    for i in range(len(anti_join2)):   
+      FALTANTES = str((anti_join2['REGIONAL'].iloc[i])) +' ❌' + '\n Numero de faltantes: ' +  str((anti_join2['OPERARIO'].iloc[i])) 
+      mensaje_incidencias += FALTANTES + '\n\n'
+    context.bot.send_message(chat_id=-998948676, text=mensaje_incidencias)
+  else:
+    mensaje_incidencias = f"Son las {now}, y los operarios fueron cargados exitosamente ✅\n " "Felicitaciones a mi creador Gustavo Boada 🎉🎉 Por crearme y esforzarse para automatizar el trabajo"
+    context.bot.send_message(chat_id=-998948676, text=mensaje_incidencias)
 
 if __name__=='__main__':
   updater = Updater(token, use_context=True)
   dp = updater.dispatcher
   dp.add_handler(CommandHandler('start', start))
+  dp.add_handler(CommandHandler('id', id))
   dp.add_handler(CommandHandler('Incidencias', Incidencias))
   dp.add_handler(CommandHandler('Inasistencias', Inasistencias))
   dp.add_handler(CommandHandler('Reposos', Reposos))
@@ -495,9 +524,16 @@ if __name__=='__main__':
   dp.add_handler(CommandHandler('Dashboard', Dashboard))
   dp.add_handler(CommandHandler('Archivo_bolsas', Archivo_bolsas))
   dp.add_handler(CommandHandler('Bolsas', Bolsas, pass_args=True))
+  job_queue = updater.job_queue
+  job_queue.run_repeating(actualizar, interval=300, first=0)
+  job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=16, minute=50, second=0))
+  job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=17, minute=0, second=40))
+  job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=18, minute=20, second=0))
+  job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=18, minute=30, second=40))
+  job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=19, minute=50, second=0))
+  job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=20, minute=0, second=40))
   dp.add_error_handler(error)
   actualizar(contexto)
-  job_queue = updater.job_queue
   job_queue.run_repeating(actualizar, interval=180, first=0)
   updater.start_polling()
   print('Actualizo la data cada 3 minutos')
