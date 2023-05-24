@@ -3,6 +3,7 @@ from telegram.ext import Updater, CommandHandler, CallbackContext
 from datetime import datetime
 from credenciales import token,key, gc
 import logging
+import time
 
 # Configurar el registro de errores
 logging.basicConfig(
@@ -11,7 +12,7 @@ logging.basicConfig(
 def error(update, context):
     """Manejar las excepciones"""
     logging.error(f'Error: {context.error}')
-    update.message.reply_text('Hubo un error interno. Pero me recupere y sigo trabajando')
+    update.message.reply_text('Hubo un error. Pero lo pude manejar y sigo trabajando espera un minuto y vuelve a hacer la peticion')
 contexto = CallbackContext
 def actualizar(contexto):
   global BD  
@@ -25,6 +26,7 @@ def actualizar(contexto):
   global vac
   global VACANTES
   global anti_join
+  global anti_join2
   global INCIDENCIAS
   global rows
   global todos
@@ -61,28 +63,32 @@ def actualizar(contexto):
   # todos los reposos
   rep = faltas[faltas['Asistencia'] == 'Reposo']
   #vacaciones
-  vac = faltas[faltas['Asistencia'] == 'Vacaciones']
+  
     
   # BD BASE DE DATOS  
   BD = gc.open_by_key(key).worksheet("DATOS").get_all_records()
   BD = pd.DataFrame(BD)
   BD_NEW = BD.loc[:,['ID_OPERARIO','OPERARIO','CEDULA', 'STATUS', 'REGIONAL', 'AGENCIA','COORDINADOR','SUPERVISOR', 'FECHA']]
-  # VACANTES
+  # PERSONAL DE VACACIONES
+  vac = BD_NEW[BD_NEW['STATUS'] == 'VACACIONES']
+  vac = vac.sort_values(['REGIONAL', 'OPERARIO'])
+  vac = vac.loc[:,['OPERARIO', 'CEDULA', 'REGIONAL', 'AGENCIA', 'STATUS']]
   VACANTES = BD.loc[: ,['ID_OPERARIO','OPERARIO','REGIONAL','AGENCIA']]
   VACANTES = VACANTES.sort_values(['REGIONAL','OPERARIO'])
   VACANTES = VACANTES[VACANTES['OPERARIO'] == 'PENDIENTE POR INGRESO']
   VACANTES = VACANTES.loc[:,['ID_OPERARIO','REGIONAL','AGENCIA']]  
-  
+  BD_faltas = BD.loc[:,['OPERARIO','STATUS','REGIONAL','AGENCIA']]
   # FILTRADO DE COLUMNAS DE LA BD
   BD = BD.loc[:,['OPERARIO','REGIONAL','AGENCIA']]
-
+  
   # FALTANTES POR CARGAR
-  outer = pd.merge(BD, DF_HOY, left_on='OPERARIO', right_on='Operario',how='outer', indicator=True)
+  outer = pd.merge(BD_faltas, DF_HOY, left_on='OPERARIO', right_on='Operario',how='outer', indicator=True)
   anti_join = outer[(outer._merge=='left_only')].drop('_merge', axis=1)
-  anti_join = anti_join[(anti_join.OPERARIO != 'CERRADA') & (anti_join.OPERARIO != 'PENDIENTE POR INGRESO')]
+  anti_join = anti_join[anti_join.STATUS == 'ACTIVO']
   anti_join = anti_join.loc[:,['OPERARIO','REGIONAL','AGENCIA']]
   anti_join = anti_join.sort_values(['REGIONAL','OPERARIO'])
-
+  anti_join2 = anti_join
+  anti_join2 = anti_join2.loc[:,['REGIONAL','OPERARIO']].groupby('REGIONAL').count().reset_index()
   # FIN DE SEMANA OPERARIOS
   FIN_OP = gc.open_by_key(key).worksheet("FIN_SEMANA").get_all_records()    
   FIN_OP = pd.DataFrame(FIN_OP)
@@ -120,9 +126,6 @@ def actualizar(contexto):
   excelentes = todos[todos['promedio'] == 1].sort_values(['REGIONAL','OPERARIO'])
   excelentes['promedio'] = excelentes['promedio'].apply(lambda x: '{:.2f}%'.format(x * 100))
   todos['promedio'] = todos['promedio'].apply(lambda x: '{:.2f}%'.format(x * 100))
-
-# ACTUALIZAR CAMBIOS EN LA BD
-
 
 # Comienza el bot 
 
@@ -174,10 +177,12 @@ def Fin_semana(update, context):
 def Fin_supervisores(update, context):
   global FIN_SUP
   if FIN_SUP.empty == False:
+      titulo1 = f"Supervisores cargados hoy {hoy} ✅" 
+      mensaje_incidencias = titulo1 + '\n\n'
       for i in range(len(FIN_SUP)):
-          titulo1 = f"Supervisores cargados hoy {hoy} ✅\n" 
           INCIDENCIAS1= titulo1 + '\n El supervisor: ' + str((FIN_SUP['NOMBRE'].iloc[i])) +' está ' + str((FIN_SUP['ASISTENCIA'].iloc[i]))
-          update.message.reply_text(INCIDENCIAS1)
+          mensaje_incidencias += INCIDENCIAS1 + '\n\n'
+      context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
     no = f"Tal vez la fecha de hoy {hoy} no corresponde a un fin de semana intenta consultarlo un sabado o un domingo"
     update.message.reply_text(no)
@@ -186,25 +191,29 @@ def Fin_supervisores(update, context):
 def Fin_operarios(update, context):
   global FIN_OP
   if FIN_OP.empty == False:
+      titulo1 = f"Operarios cargados hoy {hoy} ✅\n" 
+      mensaje_incidencias = titulo1 + '\n\n'
       for i in range(len(FIN_OP)):
-          titulo1 = f"Operarios cargados hoy {hoy} ✅\n" 
           INCIDENCIAS1= titulo1 + '\n Operario: ' + str((FIN_OP['NOMBRE'].iloc[i])) +'\n Status: ' + str((FIN_OP['ASISTENCIA'].iloc[i]))
-          update.message.reply_text(INCIDENCIAS1)
+          mensaje_incidencias += INCIDENCIAS1 + '\n\n'
+      context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
     no = f"Tal vez la fecha de hoy {hoy} no corresponde a un fin de semana intenta consultarlo un sabado o un domingo"
     update.message.reply_text(no)
 
 def Incidencias(update, context):
-  VER = 'Que tipo de incidencias quieres ver:\n\n' + '1. 🔴 /Inasistencias Muestra las faltas Injustificadas\n\n' + '2. 🟠 /Permisos Otorgados por coordinadores \n\n' + '3. 🟡 /Reposos Muestra Operarios de Reposos \n\n' + '3. ❕ /Vacaciones Muestra Operarios de Vacaciones \n\n'+ '4. 🚦 /Todas Muestra todas las Incidencias del dia \n\n' + '5. ↩️ /start Presione Para Volver al MENU principal \n\n'
+  VER = 'Que tipo de incidencias quieres ver:\n\n' + '1. 🔴 /Inasistencias Muestra las faltas Injustificadas\n\n' + '2. 🟠 /Permisos Otorgados por coordinadores \n\n' + '3. 🟡 /Reposos Muestra Operarios de Reposos \n\n' + '3. ⚪️ /Vacaciones Muestra Operarios de Vacaciones \n\n'
   update.message.reply_text(VER)
 
 def Inasistencias(update, context):
   global ina
   if ina.empty == False:
-      for i in range(len(ina)):
-          titulo1 = f"Incidencias del Día {hoy}" 
-          INCIDENCIAS1= titulo1 + '\n Operario: ' + str((ina['Operario'].iloc[i])) +'\n Regional: ' + str((ina['Regional'].iloc[i])) +'\n Agencia: ' + str((ina['Agencia'].iloc[i])) + '\n Tipo de falta: ' + '🔴 ' + str((ina['Asistencia'].iloc[i])) + '\n Novedad: ' + str((ina['Novedad'].iloc[i]))
-          update.message.reply_text(INCIDENCIAS1)
+      titulo1 = f"Inasistencia del Día {hoy} 🚫" 
+      mensaje_incidencias = titulo1 + '\n\n'
+      for i in range(len(ina)): 
+          INCIDENCIAS1=str((ina['Operario'].iloc[i])) + ' 🔴' +'\n' + str((ina['Regional'].iloc[i])) +'\n' + str((ina['Agencia'].iloc[i])) + '\n' + str((ina['Asistencia'].iloc[i])) + '\n' + str((ina['Novedad'].iloc[i]))
+          mensaje_incidencias += INCIDENCIAS1 + '\n\n'
+      context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
     no = f"✅ Personal sin inasistencias del día {hoy}"
     update.message.reply_text(no)
@@ -212,10 +221,12 @@ def Inasistencias(update, context):
 def Permisos(update, context):
   global per
   if per.empty == False:
+    titulo1 = f"Permisos del Día {hoy} 📣" 
+    mensaje_incidencias = titulo1 + '\n\n'
     for i in range(len(per)):
-      titulo1 = f"Incidencias del Día {hoy} 📣 " 
-      INCIDENCIAS2= titulo1 + '\n Operario: ' + str((per['Operario'].iloc[i])) +'\n Regional: ' + str((per['Regional'].iloc[i])) +'\n Agencia: ' + str((per['Agencia'].iloc[i])) + '\n Tipo de falta: '  + '🟠 '+ str((per['Asistencia'].iloc[i])) + '\n Novedad: ' + str((per['Novedad'].iloc[i]))
-      update.message.reply_text(INCIDENCIAS2)
+      INCIDENCIAS2= str((per['Operario'].iloc[i])) +' 🟠' +'\n' + str((per['Regional'].iloc[i])) +'\n' + str((per['Agencia'].iloc[i])) + '\n'  + str((per['Asistencia'].iloc[i])) + '\n' + str((per['Novedad'].iloc[i]))
+      mensaje_incidencias += INCIDENCIAS2 + '\n\n'
+    context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
     no = f"✅ Personal sin permisos del día {hoy}"
     update.message.reply_text(no)
@@ -223,10 +234,12 @@ def Permisos(update, context):
 def Reposos(update, context):
   global rep
   if rep.empty == False:
+    titulo1 = f"Reposos del Día {hoy} 🤒" 
+    mensaje_incidencias = titulo1 + '\n\n'
     for i in range(len(rep)):
-      titulo1 = f"Incidencias del Día {hoy}" 
-      INCIDENCIAS3= titulo1 + '\n Operario: ' + str((rep['Operario'].iloc[i])) +'\n Regional: ' + str((rep['Regional'].iloc[i])) +'\n Agencia: ' + str((rep['Agencia'].iloc[i])) + '\n Tipo de falta: ' + '🟡 ' + str((rep['Asistencia'].iloc[i])) + '\n Novedad: ' + str((rep['Novedad'].iloc[i]))
-      update.message.reply_text(INCIDENCIAS3)
+      INCIDENCIAS3= str((rep['Operario'].iloc[i])) +' 🟡'+'\n' + str((rep['Regional'].iloc[i])) +'\n' + str((rep['Agencia'].iloc[i])) + '\n' + str((rep['Asistencia'].iloc[i])) + '\n' + str((rep['Novedad'].iloc[i]))
+      mensaje_incidencias += INCIDENCIAS3 + '\n\n'
+    context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
     no = f"✅ Personal sin Reposos del día {hoy}"
     update.message.reply_text(no)
@@ -234,12 +247,15 @@ def Reposos(update, context):
 def Vacaciones(update, context):
   global vac
   if vac.empty == False:
+    titulo1 = f"Operarios de vacaciones al dia {hoy} ✈️" 
+    mensaje_incidencias = titulo1 + '\n\n'
     for i in range(len(vac)):
-      titulo1 = f"Incidencias del Día {hoy}" 
-      INCIDENCIAS4= titulo1 + '\n Operario: ' + str((vac['Operario'].iloc[i])) +'\n Regional: ' + str((vac['Regional'].iloc[i])) +'\n Agencia: ' + str((vac['Agencia'].iloc[i])) + '\n Tipo de falta: ' + '❕ ' + str((vac['Asistencia'].iloc[i]))
-      update.message.reply_text(INCIDENCIAS4)
+      INCIDENCIAS4= str((vac['OPERARIO'].iloc[i])) +' ⚪️'+'\n' + str((vac['CEDULA'].iloc[i])) +'\n' + str((vac['REGIONAL'].iloc[i])) + '\n' + str((vac['AGENCIA'].iloc[i])) + '\n' + str((vac['STATUS'].iloc[i]))
+      mensaje_incidencias += INCIDENCIAS4 + '\n\n'
+    context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
+      
   else:
-    no = f"✅ Personal sin Reposos del día {hoy}"
+    no = f"✅ No hay personal de vacaciones al día {hoy}"
     update.message.reply_text(no)
 
 def Todas(update, context):
@@ -254,16 +270,19 @@ def Todas(update, context):
     update.message.reply_text(no)
 
 def Evaluaciones(update, context):
-  VER = 'Que operarios evaluados hoy quieres ver:\n\n' + '1. ✅ /Todos los operarios evaluados hoy \n\n' + '2. 🟢 /Excelentes Muestra los mejores Operarios de hoy \n\n' + '3. 🔵 /Buenos operarios evaluados de hoy \n\n' + '4. 🟡 /Regulares operarios evaluados de hoy \n\n' + '5. 🔴 /Malos Muestra Los peores evaluados de hoy \n\n'
+  VER = 'Que operarios evaluados hoy quieres ver:\n\n' + '1. ✅ /Todos los operarios evaluados hoy \n\n' + '2. 🟢 /Excelentes Muestra los mejores Operarios de hoy \n\n' + '3. 🔵 /Buenos operarios evaluados de hoy \n\n' + '4. 🟡 /Regulares operarios evaluados de hoy \n\n' + '5. 🔴 /Ineficientes Muestra Los peores evaluados de hoy \n\n'
   update.message.reply_text(VER)
+  
 
 def Todos(update, context):
   global todos
   if todos.empty == False:
+    titulo1 = f"Evaluaciones del dia {hoy} 📈"
+    mensaje_incidencias = titulo1 + '\n\n'
     for i in range(len(todos)):
-      titulo1 = f"Evaluaciones del dia {hoy}" 
-      INCIDENCIAS1= titulo1 + '\n Operario: ' + str((todos['OPERARIO'].iloc[i])) +'\n Regional: ' + str((todos['REGIONAL'].iloc[i])) +'\n Agencia: ' + str((todos['AGENCIA'].iloc[i])) + '\n Desempeño: ' + str((todos['promedio'].iloc[i])) + " ✅"
-      update.message.reply_text(INCIDENCIAS1)
+      INCIDENCIAS1= str((todos['OPERARIO'].iloc[i])) +'\n' + str((todos['REGIONAL'].iloc[i])) +'\n' + str((todos['AGENCIA'].iloc[i])) + '\n Desempeño: ' + str((todos['promedio'].iloc[i])) + " ✅"
+      mensaje_incidencias += INCIDENCIAS1 + '\n\n'
+    context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
     empty = f"✅ Los operarios del dia {hoy} aun no han sido evaluados"
     update.message.reply_text(empty)
@@ -271,10 +290,12 @@ def Todos(update, context):
 def Excelentes(update, context):
   global excelentes
   if excelentes.empty == False:
+    titulo1 = f"Evaluaciones Excelentes del dia {hoy} 📈" 
+    mensaje_incidencias = titulo1 + '\n\n'
     for i in range(len(excelentes)):
-      titulo1 = f"Evaluaciones Excelentes del dia {hoy}" 
-      INCIDENCIAS1= titulo1 + '\n Operario: ' + str((excelentes['OPERARIO'].iloc[i])) +'\n Regional: ' + str((excelentes['REGIONAL'].iloc[i])) +'\n Agencia: ' + str((excelentes['AGENCIA'].iloc[i])) + '\n Desempeño: ' + str((excelentes['promedio'].iloc[i])) + " 🟢"
-      update.message.reply_text(INCIDENCIAS1)
+      INCIDENCIAS1=  str((excelentes['OPERARIO'].iloc[i])) +'\n' + str((excelentes['REGIONAL'].iloc[i])) +'\n' + str((excelentes['AGENCIA'].iloc[i])) + '\n Desempeño: ' + str((excelentes['promedio'].iloc[i])) + " 🟢"
+      mensaje_incidencias += INCIDENCIAS1 + '\n\n'
+    context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
     empty = f"✅ No hay operararios del dia {hoy} con evaluacion perfecta"
     update.message.reply_text(empty)
@@ -282,10 +303,12 @@ def Excelentes(update, context):
 def Buenos(update, context):
   global buenos
   if buenos.empty == False:
-    for i in range(len(buenos)):
-      titulo1 = f"Evaluaciones buenas del dia {hoy}" 
-      INCIDENCIAS1= titulo1 + '\n Operario: ' + str((buenos['OPERARIO'].iloc[i])) +'\n Regional: ' + str((buenos['REGIONAL'].iloc[i])) +'\n Agencia: ' + str((buenos['AGENCIA'].iloc[i])) + '\n Desempeño: ' + str((buenos['promedio'].iloc[i])) + " 🔵"
-      update.message.reply_text(INCIDENCIAS1)
+    titulo1 = f"Evaluaciones buenas del dia {hoy} 📈" 
+    mensaje_incidencias = titulo1 + '\n\n'
+    for i in range(len(buenos)):  
+      INCIDENCIAS1= str((buenos['OPERARIO'].iloc[i])) +'\n' + str((buenos['REGIONAL'].iloc[i])) +'\n' + str((buenos['AGENCIA'].iloc[i])) + '\n Desempeño: ' + str((buenos['promedio'].iloc[i])) + " 🔵"
+      mensaje_incidencias += INCIDENCIAS1 + '\n\n'
+    context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
     empty = f"✅ No hay operararios del dia {hoy} con buena evaluacion"
     update.message.reply_text(empty)
@@ -293,61 +316,70 @@ def Buenos(update, context):
 def Regulares(update, context):
   global regulares
   if regulares.empty == False:
+    titulo1 = f"Evaluaciones regulares del dia {hoy} 📈" 
+    mensaje_incidencias = titulo1 + '\n\n'
     for i in range(len(regulares)):
-      titulo1 = f"Evaluaciones regulares del dia {hoy}" 
-      INCIDENCIAS1= titulo1 + '\n Operario: ' + str((regulares['OPERARIO'].iloc[i])) +'\n Regional: ' + str((regulares['REGIONAL'].iloc[i])) +'\n Agencia: ' + str((regulares['AGENCIA'].iloc[i])) + '\n Desempeño: ' + str((regulares['promedio'].iloc[i])) + " 🟡"
-      update.message.reply_text(INCIDENCIAS1)
+      INCIDENCIAS1= str((regulares['OPERARIO'].iloc[i])) +'\n' + str((regulares['REGIONAL'].iloc[i])) +'\n' + str((regulares['AGENCIA'].iloc[i])) + '\n Desempeño: ' + str((regulares['promedio'].iloc[i])) + " 🟡"
+      mensaje_incidencias += INCIDENCIAS1 + '\n\n'
+    context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
     empty = f"✅ No hay operararios del dia {hoy} con evaluacion regular"
     update.message.reply_text(empty)
 
 
-def Malos(update, context):
+def Ineficientes(update, context):
   global malos
   if malos.empty == False:
+    titulo1 = f"Evaluaciones de desempeño ineficiente del dia {hoy} 📈" 
+    mensaje_incidencias = titulo1 + '\n\n'
     for i in range(len(malos)):
-      titulo1 = f"Evaluaciones de mal desempeño del dia {hoy}" 
-      INCIDENCIAS1= titulo1 + '\n Operario: ' + str((malos['OPERARIO'].iloc[i])) +'\n Regional: ' + str((malos['REGIONAL'].iloc[i])) +'\n Agencia: ' + str((malos['AGENCIA'].iloc[i])) + '\n Desempeño: ' + str((malos['promedio'].iloc[i])) + "🔴"
-      update.message.reply_text(INCIDENCIAS1)
+      INCIDENCIAS1=str((malos['OPERARIO'].iloc[i])) +'\n' + str((malos['REGIONAL'].iloc[i])) +'\n' + str((malos['AGENCIA'].iloc[i])) + '\n Desempeño: ' + str((malos['promedio'].iloc[i])) + " 🔴"
+      mensaje_incidencias += INCIDENCIAS1 + '\n\n'
+    context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)   
   else:
     empty = f"✅ No hay operararios del dia {hoy} con evaluacion por debajo del 50%"
     update.message.reply_text(empty)
 
 def Faltantes(update, context):
-  foul = 'Ver el nombre de los operarios faltantes o el numero de faltantes:\n\n' + '1. 🔤 /Nombres de los operarios faltantes por cargar hoy \n\n' + '2. 🔢 /Numeros de Operarios faltantes por cargar hoy \n\n'
+  foul = 'Ver el nombre de los operarios faltantes o el numero de faltantes ❌ \n\n' + '1. 🔤 /Nombres de los operarios faltantes por cargar hoy \n\n' + '2. 🔢 /Numeros de Operarios faltantes por cargar agrupados por Regional \n\n'
   update.message.reply_text(foul)
 
     
 def Nombres(update, context):
   global anti_join
   if anti_join.empty == False:
+    titulo2 = f"Nombre de operarios faltantes por Cargar hoy {hoy}"
+    mensaje_incidencias = titulo2 + '\n\n'
     for i in range(len(anti_join)):
-      titulo2 = f"❌ Nombre de operarios faltantes por Cargar hoy {hoy}"
-      FALTANTES =titulo2 + '\n Operario: ' + str((anti_join['OPERARIO'].iloc[i])) + '\n Regional: ' + str((anti_join['REGIONAL'].iloc[i])) + '\n Agencia: ' + str((anti_join['AGENCIA'].iloc[i]))
-      update.message.reply_text(FALTANTES)
+      FALTANTES = str((anti_join['OPERARIO'].iloc[i])) + ' ❌' + '\n'+ str((anti_join['REGIONAL'].iloc[i])) + '\n' + str((anti_join['AGENCIA'].iloc[i]))
+      mensaje_incidencias += FALTANTES + '\n\n'
+    context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
-    empty = f"Todos los operarios del dia {hoy} fueron cargados exitosamente ✅"
+    empty = f"Los operarios del dia {hoy} fueron cargados exitosamente ✅"
     update.message.reply_text(empty)
 
 def Numeros(update, context):
-  global anti_join
-  anti_join = anti_join.loc[:,['REGIONAL','OPERARIO']].groupby('REGIONAL').count().reset_index()
-  if anti_join.empty == False:
-    for i in range(len(anti_join)):
-      titulo2 = f"❌ Numero de operarios faltantes por regional {hoy}\n"
-      FALTANTES =titulo2  + '\n Regional: ' + str((anti_join['REGIONAL'].iloc[i])) + '\n Numero de operarios faltantes: ' +  str((anti_join['OPERARIO'].iloc[i])) 
-      update.message.reply_text(FALTANTES)
+  global anti_join2
+  if anti_join2.empty == False:
+    titulo2 = f"Operarios faltantes por regional {hoy}"
+    mensaje_incidencias = titulo2 + '\n\n'
+    for i in range(len(anti_join2)):   
+      FALTANTES = str((anti_join2['REGIONAL'].iloc[i])) +' ❌' + '\n Numero de faltantes: ' +  str((anti_join2['OPERARIO'].iloc[i])) 
+      mensaje_incidencias += FALTANTES + '\n\n'
+    context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
-    empty = f"✅ Todos los operarios del dia {hoy} fueron cargados exitosamente"
+    empty = f"Los operarios del dia {hoy} fueron cargados exitosamente ✅"
     update.message.reply_text(empty)
 
-def Vacantes(update, contex):
+def Vacantes(update, context):
   global VACANTES
   if VACANTES.empty == False:
-    for i in range(len(VACANTES)):
-      titulo3 = f"⚠️ Vacantes actuales al dia {hoy}"
+    titulo3 = f"⚠️ Vacantes actuales al dia {hoy}"
+    mensaje_incidencias = titulo3 + '\n\n'
+    for i in range(len(VACANTES)): 
       por_ingreso =titulo3 + '\n ID: ' + str((VACANTES['ID_OPERARIO'].iloc[i])) + '\n Regional: ' + str((VACANTES['REGIONAL'].iloc[i]))  + '\n Agencia : ' + str((VACANTES['AGENCIA'].iloc[i])) 
-      update.message.reply_text(por_ingreso)
+      mensaje_incidencias += por_ingreso + '\n\n'
+    context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
     no_vacantes = f"Al dia {hoy} no hay vacantes Disponibles"
     update.message.reply_text(no_vacantes)
@@ -450,7 +482,7 @@ if __name__=='__main__':
   dp.add_handler(CommandHandler('Excelentes', Excelentes))
   dp.add_handler(CommandHandler('Buenos', Buenos))
   dp.add_handler(CommandHandler('Regulares', Regulares))
-  dp.add_handler(CommandHandler('Malos', Malos))
+  dp.add_handler(CommandHandler('Ineficientes', Ineficientes))
   dp.add_handler(CommandHandler('copiar_datos', copiar_datos))
   dp.add_handler(CommandHandler('Faltantes', Faltantes))
   dp.add_handler(CommandHandler('Numeros', Numeros))
@@ -466,8 +498,7 @@ if __name__=='__main__':
   dp.add_error_handler(error)
   actualizar(contexto)
   job_queue = updater.job_queue
-  job_queue.run_repeating(actualizar, interval=300, first=0)
+  job_queue.run_repeating(actualizar, interval=180, first=0)
   updater.start_polling()
-  print('Estoy Corriendo cada 10 minutos')
+  print('Actualizo la data cada 3 minutos')
   updater.idle()
-  
