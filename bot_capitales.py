@@ -475,29 +475,29 @@ def recordatorio(contexto):
   global anti_join2 
   now = datetime.now().strftime("%I:%M %p")
   if anti_join2.empty == False:
-    contexto.bot.send_message(chat_id=-1001835769403, text="<b>ALERTA ⚠️\n\n</b>" + f"Son las {now}, recuerda verificar si todos los operarios fueron cargados en 10 minutos verificaré cuantos faltan por cargar", parse_mode='HTML')
+    contexto.bot.send_message(chat_id=-998948676, text="<b>ALERTA ⚠️\n\n</b>" + f"Son las {now}, recuerda verificar si todos los operarios fueron cargados en 10 minutos verificaré cuantos faltan por cargar", parse_mode='HTML')
   else:
      pass   
 def recordar(context):
   global anti_join
   global anti_join2
   now = datetime.now().strftime("%I:%M %p")
-  if anti_join.empty == False and len(anti_join)< 15:
+  if anti_join.empty == False and len(anti_join)< 35:
     titulo2 = "ALERTA ⚠️\n\n" + f"Son las {now}, y aún faltan operarios por cargar en la app. aqui te dejo el listado para que los carguen lo mas pronto posible"
     mensaje_incidencias = titulo2 + '\n\n'
     for i in range(len(anti_join)):
       FALTANTES = str((anti_join['OPERARIO'].iloc[i])) + ' ❌' + '\n'+ str((anti_join['REGIONAL'].iloc[i])) + '\n' + str((anti_join['AGENCIA'].iloc[i]))
       mensaje_incidencias += FALTANTES + '\n\n'
       context.bot.send_message(chat_id=-998948676, text=mensaje_incidencias)
-  elif anti_join.empty == False and len(anti_join)>= 15:
-    titulo2 = "ALERTA ⚠️\n\n" + f"Son las {now}, y aún faltan operarios por cargar en la app. aqui te dejo el listado para que los carguen lo mas pronto posible"
+  elif anti_join.empty == False and len(anti_join)>= 35:
+    titulo2 = "ALERTA ⚠️\n\n" + f"Son las {now}, y aún faltan mas de 35 operarios por cargar en la app. aqui te dejo el listado para que los carguen lo mas pronto posible"
     mensaje_incidencias = titulo2 + '\n\n'  
     for i in range(len(anti_join2)):   
       FALTANTES = str((anti_join2['REGIONAL'].iloc[i])) +' ❌' + '\n Numero de faltantes: ' +  str((anti_join2['OPERARIO'].iloc[i])) 
       mensaje_incidencias += FALTANTES + '\n\n'
     context.bot.send_message(chat_id=-998948676, text=mensaje_incidencias)
   else:
-    mensaje_incidencias = f"Son las {now}, y los operarios fueron cargados exitosamente ✅\n " "Felicitaciones a mi creador Gustavo Boada 🎉🎉 Por crearme y esforzarse para automatizar el trabajo"
+    mensaje_incidencias = f"Son las {now}, y los operarios fueron cargados exitosamente ✅\n " " Proceso Autlomatizado Creamos equipos a tus Servicios"
     context.bot.send_message(chat_id=-998948676, text=mensaje_incidencias)
 
 if __name__=='__main__':
