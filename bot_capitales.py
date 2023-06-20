@@ -38,10 +38,20 @@ def actualizar(contexto):
   global buenos
   global ASISTENCIA_NEW
   global BD_NEW
+  global changes
+  global worksheet2
+  global worksheet1
   # fecha de hoy
   dia = datetime.today()
   hoy = dia.strftime('%Y-%m-%d')
-
+# MOVIMIENTOS
+  today = dia.strftime('%d/%m/%Y')
+  HOJA = gc.open_by_key(key)
+  worksheet1 = HOJA.worksheet("DATOS")
+  worksheet2 = HOJA.worksheet("MOVIMIENTOS")
+  
+  changes = worksheet2.findall(today)
+  
   # ASISTENCIA OPERARIOS
   rows = gc.open_by_key(key).worksheet("ASIS_OP").get_all_records()
   ASIS_OP = pd.DataFrame(rows)
@@ -62,11 +72,8 @@ def actualizar(contexto):
   per = faltas[faltas['Asistencia'] == 'Permiso']
   # todos los reposos
   rep = faltas[faltas['Asistencia'] == 'Reposo']
-  #vacaciones
-  
-    
   # BD BASE DE DATOS  
-  BD = gc.open_by_key(key).worksheet("DATOS").get_all_records()
+  BD = worksheet1.get_all_records()
   BD = pd.DataFrame(BD)
   BD_NEW = BD.loc[:,['ID_OPERARIO','OPERARIO','CEDULA', 'STATUS', 'REGIONAL', 'AGENCIA','COORDINADOR','SUPERVISOR', 'FECHA']]
   # PERSONAL DE VACACIONES
@@ -126,7 +133,6 @@ def actualizar(contexto):
   excelentes = todos[todos['promedio'] == 1].sort_values(['REGIONAL','OPERARIO'])
   excelentes['promedio'] = excelentes['promedio'].apply(lambda x: '{:.2f}%'.format(x * 100))
   todos['promedio'] = todos['promedio'].apply(lambda x: '{:.2f}%'.format(x * 100))
-
 # Comienza el bot 
 
 def start(update, context):
@@ -143,9 +149,9 @@ def start(update, context):
         '6. ⚠️ /Vacantes disponibles\n\n'\
         '7. 📈 /copiar_datos envia la informacion de las faltas del dia a una hoja de calculo\n\n'\
         '8. 📨 /Archivo_bolsas Se crea un archivo de operarios a recibir Bolsas\n\n'\
-        '9. 📊 /Dashboard Muestra el Dashboard de los operarios \n\n', parse_mode='HTML')
+        '9. 📧 /Contacto Muestra la informacion de mi creador \n\n'\
+        '10 📊 /Dashboard Muestra el Dashboard de los operarios \n\n', parse_mode='HTML')
 
-  
 def copiar_datos(update, context):
   # Autenticar la conexión con las credenciales proporcionadas
     # Obtener la hoja de cálculo correspondiente
@@ -186,7 +192,6 @@ def Fin_supervisores(update, context):
   else:
     no = f"Tal vez la fecha de hoy {hoy} no corresponde a un fin de semana intenta consultarlo un sabado o un domingo"
     update.message.reply_text(no)
-
 
 def Fin_operarios(update, context):
   global FIN_OP
@@ -273,7 +278,6 @@ def Evaluaciones(update, context):
   VER = 'Que operarios evaluados hoy quieres ver:\n\n' + '1. ✅ /Todos los operarios evaluados hoy \n\n' + '2. 🟢 /Excelentes Muestra los mejores Operarios de hoy \n\n' + '3. 🔵 /Buenos operarios evaluados de hoy \n\n' + '4. 🟡 /Regulares operarios evaluados de hoy \n\n' + '5. 🔴 /Ineficientes Muestra Los peores evaluados de hoy \n\n'
   update.message.reply_text(VER)
   
-
 def Todos(update, context):
   global todos
   if todos.empty == False:
@@ -326,7 +330,6 @@ def Regulares(update, context):
     empty = f"✅ No hay operararios del dia {hoy} con evaluacion regular"
     update.message.reply_text(empty)
 
-
 def Ineficientes(update, context):
   global malos
   if malos.empty == False:
@@ -343,8 +346,7 @@ def Ineficientes(update, context):
 def Faltantes(update, context):
   foul = 'Ver el nombre de los operarios faltantes o el numero de faltantes ❌ \n\n' + '1. 🔤 /Nombres de los operarios faltantes por cargar hoy \n\n' + '2. 🔢 /Numeros de Operarios faltantes por cargar agrupados por Regional \n\n'
   update.message.reply_text(foul)
-
-    
+  
 def Nombres(update, context):
   global anti_join
   if anti_join.empty == False:
@@ -471,6 +473,117 @@ def id(update, context):
     chat_id = update.effective_chat.id
     print(f"Chat ID is: {chat_id}")
 
+def movimientos(contexto):
+  global changes
+  global worksheet1
+  global worksheet2
+  celdas = []
+  cambio1 = []
+  cambio2 = []
+  if len(changes)>0:
+
+    for change in changes:
+      fila = change.row
+      id = worksheet2.cell(fila, 2).value
+      id = int(id)
+      movimiento = worksheet2.cell(fila, 5).value
+      nombre = worksheet2.cell(fila, 6).value
+      cedula = worksheet2.cell(fila, 7).value
+      telefono = worksheet2.cell(fila, 9).value
+      fecha = worksheet2.cell(fila, 10).value
+      realizado = worksheet2.cell(fila,12).value
+      
+      if movimiento == "NUEVO INGRESO" and realizado != "MOVIMIENTO REALIZADO":
+        worksheet1.update_cell(id + 1, 4, nombre)  # Cambiar nombre
+        worksheet1.update_cell(id + 1, 5, "'" + cedula) # Cambiar cédula
+        worksheet1.update_cell(id + 1, 6, "ACTIVO") # Cambiar status
+        worksheet1.update_cell(id + 1, 12, telefono) # Cambiar teléfono
+        worksheet1.update_cell(id + 1, 13, "'" + fecha)
+        worksheet2.update_cell(fila, 12, "MOVIMIENTO REALIZADO")
+        contexto.bot.send_message(chat_id=-998948676, text="✅ Los Nuevos ingresos ya se encuentran agregados a la APP")
+      
+      elif (movimiento == "RENUNCIA" or movimiento == "CULMINACION DE CONTRATO") and realizado != "MOVIMIENTO REALIZADO":
+        worksheet1.update_cell(id + 1, 4, "PENDIENTE POR INGRESO")  # Cambiar nombre
+        worksheet1.update_cell(id + 1, 5, "NO APLICA") # Cambiar cédula
+        worksheet1.update_cell(id + 1, 6, "INACTIVO")
+        worksheet1.update_cell(id + 1, 12, "NO APLICA") # Cambiar teléfono
+        worksheet1.update_cell(id + 1, 13, "'" + fecha)   # Cambiar fecha ingreso
+        worksheet1.update_cell(id + 1, 14, " ") # Cambiar foto en blanco
+        worksheet2.update_cell(fila, 12, "MOVIMIENTO REALIZADO")
+        contexto.bot.send_message(chat_id=-998948676, text="✅ Se realizaron Culminaciones de contrato o se crearon renuncas asi que, quedaron vacantes disponibles")
+      
+      elif movimiento == "CIERRE DE AGENCIA" and realizado != "MOVIMIENTO REALIZADO":
+        worksheet1.update_cell(id + 1, 4, "CERRADA")  # Cambiar nombre
+        worksheet1.update_cell(id + 1, 5, "NO APLICA") # Cambiar cédula
+        worksheet1.update_cell(id + 1, 6, "INACTIVO") # Cambiar status
+        worksheet1.update_cell(id + 1, 12, "NO APLICA") # Cambiar teléfono
+        worksheet1.update_cell(id + 1, 14, " ") # Cambiar foto en blanco
+        worksheet2.update_cell(fila, 12, "MOVIMIENTO REALIZADO")
+        contexto.bot.send_message(chat_id=-998948676, text="✅ Se realizo correctamente el cierre de la Agencia")
+      
+      elif movimiento == "CAMBIO INDIVIDUAL" and realizado != "MOVIMIENTO REALIZADO":
+        buscar = worksheet1.find(cedula)
+        celda = buscar.row
+        NOMBRE = worksheet1.cell(celda, 4).value
+        foto = worksheet1.cell(celda, 14).value
+        fecha = worksheet1.cell(celda, 13).value
+        worksheet1.update_cell(id + 1, 4, NOMBRE)  # Cambiar nombre
+        worksheet1.update_cell(id + 1, 5, "'" + cedula) # Cambiar cédula
+        worksheet1.update_cell(id + 1, 6, "ACTIVO") # Cambiar status
+        worksheet1.update_cell(id + 1, 12, telefono) # Cambiar teléfono
+        worksheet1.update_cell(id + 1, 13, "'" + fecha) # Cambiar fecha ingreso
+        worksheet1.update_cell(id + 1, 14, foto) # Cambiar foto
+        worksheet1.update_cell(celda,4,"PENDIENTE POR INGRESO")
+        worksheet1.update_cell(celda,5,"NO APLICA")
+        worksheet1.update_cell(celda,6,"INACTIVO")
+        worksheet1.update_cell(celda,12,"NO APLICA")
+        worksheet2.update_cell(fila, 12, "MOVIMIENTO REALIZADO")
+        contexto.bot.send_message(chat_id=-998948676, text="✅ Se realizaron correctamente el Cambios de operarios a otraos puestos de trabajo")
+      
+      elif movimiento == "CAMBIO EN CONJUNTO" and realizado != "MOVIMIENTO REALIZADO":
+        buscar = worksheet1.find(cedula)
+        celda = buscar.row
+        celdas.append(celda)
+        worksheet2.update_cell(fila, 12, "MOVIMIENTO REALIZADO")
+        if len(celdas) == 2:
+          NOMBRE1 = worksheet1.cell(celdas[0], 4).value
+          cambio1.append(NOMBRE1)
+          cedula = worksheet1.cell(celdas[0], 5).value
+          cambio1.append(cedula)
+          TELEFONO1 = worksheet1.cell(celdas[0], 12).value
+          cambio1.append(TELEFONO1)
+          FECHA1 = worksheet1.cell(celdas[0], 13).value
+          cambio1.append(FECHA1)
+          FOTO1 = worksheet1.cell(celdas[0], 14).value
+          cambio1.append(FOTO1)
+
+          NOMBRE2 = worksheet1.cell(celdas[1], 4).value
+          cambio2.append(NOMBRE2)
+          cedula = worksheet1.cell(celdas[1], 5).value
+          cambio2.append(cedula)
+          TELEFONO2 = worksheet1.cell(celdas[1], 12).value
+          cambio2.append(TELEFONO2)
+          FECHA2 = worksheet1.cell(celdas[1], 13).value
+          cambio2.append(FECHA2)
+          FOTO2 = worksheet1.cell(celdas[1], 14).value
+          cambio2.append(FOTO2)
+
+          worksheet1.update_cell(celdas[0], 4, cambio2[0])
+          worksheet1.update_cell(celdas[0], 5, "'" + cambio2[1])
+          worksheet1.update_cell(celdas[0], 6, "ACTIVO")
+          worksheet1.update_cell(celdas[0], 12, cambio2[2])
+          worksheet1.update_cell(celdas[0], 13, "'" + cambio2[3])
+          worksheet1.update_cell(celdas[0], 14, cambio2[4])
+
+          worksheet1.update_cell(celdas[1], 4, cambio1[0])
+          worksheet1.update_cell(celdas[1], 5, "'" + cambio1[1])
+          worksheet1.update_cell(celdas[1], 6, "ACTIVO")
+          worksheet1.update_cell(celdas[1], 12, cambio1[2])
+          worksheet1.update_cell(celdas[1], 13, "'" + cambio1[3])
+          worksheet1.update_cell(celdas[1], 14, cambio1[4]) 
+        contexto.bot.send_message(chat_id=-998948676, text="✅ Se realizo correctamente el movimiento de los cambio en conjunto de los operarios \n")
+  else:
+    contexto.bot.send_message(chat_id=-998948676, text=f"✅ No hay Movimientos creados para el dia de hoy")
 def recordatorio(contexto):
   global anti_join2 
   now = datetime.now().strftime("%I:%M %p")
@@ -488,7 +601,7 @@ def recordar(context):
     for i in range(len(anti_join)):
       FALTANTES = str((anti_join['OPERARIO'].iloc[i])) + ' ❌' + '\n'+ str((anti_join['REGIONAL'].iloc[i])) + '\n' + str((anti_join['AGENCIA'].iloc[i]))
       mensaje_incidencias += FALTANTES + '\n\n'
-      context.bot.send_message(chat_id=-998948676, text=mensaje_incidencias)
+    context.bot.send_message(chat_id=-998948676, text=mensaje_incidencias)
   elif anti_join.empty == False and len(anti_join)>= 35:
     titulo2 = "ALERTA ⚠️\n\n" + f"Son las {now}, y aún faltan mas de 35 operarios por cargar en la app. aqui te dejo el listado para que los carguen lo mas pronto posible"
     mensaje_incidencias = titulo2 + '\n\n'  
@@ -497,13 +610,16 @@ def recordar(context):
       mensaje_incidencias += FALTANTES + '\n\n'
     context.bot.send_message(chat_id=-998948676, text=mensaje_incidencias)
   else:
-    mensaje_incidencias = f"Son las {now}, y los operarios fueron cargados exitosamente ✅\n " " Proceso Autlomatizado Creamos equipos a tus Servicios"
+    mensaje_incidencias = f"A las {now}, los operarios fueron cargados exitosamente ✅\n " "Proceso Automatizado Creamos equipos a tus Servicios"
     context.bot.send_message(chat_id=-998948676, text=mensaje_incidencias)
-
+def Contacto(update, contexto):
+  mensaje= "Informacion del Coordinador de Datos. \n\n\n" "Telefono: +584126050914 \n\n" "Correo: gustavoserviplus@gmail.com \n\n" "Lindedin: https://www.linkedin.com/in/gboada23/ \n\n" "Github: https://github.com/gboada23 \n"
+  contexto.bot.send_message(chat_id=update.effective_chat.id, text=mensaje)
 if __name__=='__main__':
   updater = Updater(token, use_context=True)
   dp = updater.dispatcher
   dp.add_handler(CommandHandler('start', start))
+  dp.add_handler(CommandHandler('Contacto', Contacto))
   dp.add_handler(CommandHandler('id', id))
   dp.add_handler(CommandHandler('Incidencias', Incidencias))
   dp.add_handler(CommandHandler('Inasistencias', Inasistencias))
@@ -530,6 +646,7 @@ if __name__=='__main__':
   dp.add_handler(CommandHandler('Bolsas', Bolsas, pass_args=True))
   job_queue = updater.job_queue
   job_queue.run_repeating(actualizar, interval=300, first=0)
+  job_queue.run_daily(movimientos, days=(0, 1, 2, 3, 4), time=dt_time(hour=16, minute=30, second=0))
   job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=16, minute=50, second=0))
   job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=17, minute=0, second=0))
   job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=18, minute=20, second=0))
