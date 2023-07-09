@@ -12,7 +12,7 @@ logging.basicConfig(
 def error(update, context):
     """Manejar las excepciones"""
     logging.error(f'Error: {context.error}')
-    update.message.reply_text('Hubo un error. Pero lo pude manejar y sigo trabajando espera un minuto y vuelve a hacer la peticion')
+    update.message.reply_text('"Hubo un error ❌". \n Probablemente el servidor donde me estoy ejecutando no tiene buen internet, verifica su conexion o intentalo nuevamente en 2 minutos')
 contexto = CallbackContext
 def actualizar(contexto):
   global BD  
@@ -51,7 +51,7 @@ def actualizar(contexto):
   worksheet2 = HOJA.worksheet("MOVIMIENTOS")
   
   changes = worksheet2.findall(today)
-  
+
   # ASISTENCIA OPERARIOS
   rows = gc.open_by_key(key).worksheet("ASIS_OP").get_all_records()
   ASIS_OP = pd.DataFrame(rows)
@@ -144,7 +144,7 @@ def start(update, context):
         '1. ⭕️ /Incidencias Inasistencias, Reposos, Permisos y Vacaciones\n\n'\
         '2. ❎ /Faltantes por cargar del dia de hoy \n\n'\
         '3. 📈 /Evaluaciones del operario\n\n'\
-        '4. 📅 /Visitas a las agencias del dia de hoy \n\n'\
+        '4. ♻️ /movimientos ejecuta para reflejar cambios en la APP \n\n'\
         '5. 🔎 /Fin_semana de los Supervisores y Operarios\n\n'\
         '6. ⚠️ /Vacantes disponibles\n\n'\
         '7. 📈 /copiar_datos envia la informacion de las faltas del dia a una hoja de calculo\n\n'\
@@ -183,10 +183,10 @@ def Fin_semana(update, context):
 def Fin_supervisores(update, context):
   global FIN_SUP
   if FIN_SUP.empty == False:
-      titulo1 = f"Supervisores cargados hoy {hoy} ✅" 
+      titulo1 = f"Supervisores cargados hoy {hoy}" 
       mensaje_incidencias = titulo1 + '\n\n'
       for i in range(len(FIN_SUP)):
-          INCIDENCIAS1= titulo1 + '\n El supervisor: ' + str((FIN_SUP['NOMBRE'].iloc[i])) +' está ' + str((FIN_SUP['ASISTENCIA'].iloc[i]))
+          INCIDENCIAS1='El supervisor: ' + str((FIN_SUP['NOMBRE'].iloc[i])) +' está ' + str((FIN_SUP['ASISTENCIA'].iloc[i]) + ' ✅')
           mensaje_incidencias += INCIDENCIAS1 + '\n\n'
       context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
@@ -196,10 +196,10 @@ def Fin_supervisores(update, context):
 def Fin_operarios(update, context):
   global FIN_OP
   if FIN_OP.empty == False:
-      titulo1 = f"Operarios cargados hoy {hoy} ✅\n" 
+      titulo1 = f"Operarios cargados hoy {hoy}" 
       mensaje_incidencias = titulo1 + '\n\n'
       for i in range(len(FIN_OP)):
-          INCIDENCIAS1= titulo1 + '\n Operario: ' + str((FIN_OP['NOMBRE'].iloc[i])) +'\n Status: ' + str((FIN_OP['ASISTENCIA'].iloc[i]))
+          INCIDENCIAS1= str((FIN_OP['NOMBRE'].iloc[i])) +'\n Status: ' + str((FIN_OP['ASISTENCIA'].iloc[i]) + ' ✅')
           mensaje_incidencias += INCIDENCIAS1 + '\n\n'
       context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
@@ -379,7 +379,7 @@ def Vacantes(update, context):
     titulo3 = f"⚠️ Vacantes actuales al dia {hoy}"
     mensaje_incidencias = titulo3 + '\n\n'
     for i in range(len(VACANTES)): 
-      por_ingreso =titulo3 + '\n ID: ' + str((VACANTES['ID_OPERARIO'].iloc[i])) + '\n Regional: ' + str((VACANTES['REGIONAL'].iloc[i]))  + '\n Agencia : ' + str((VACANTES['AGENCIA'].iloc[i])) 
+      por_ingreso ='ID: ' + str((VACANTES['ID_OPERARIO'].iloc[i])) + '\n Regional: ' + str((VACANTES['REGIONAL'].iloc[i]))  + '\n Agencia : ' + str((VACANTES['AGENCIA'].iloc[i])) 
       mensaje_incidencias += por_ingreso + '\n\n'
     context.bot.send_message(chat_id=update.effective_chat.id, text=mensaje_incidencias)
   else:
@@ -398,7 +398,7 @@ def Archivo_bolsas(update, context):
         '3.  "fecha de inicio" es el primer dia a tomar en cuenta para las bolsas de dicho mes\n\n'+
         '4.  "fecha final" es el ultimo dia a tomar en cuenta para las bolsas de dicho mes\n\n'+
         '5.  "fecha de tolerancia" es el dia maximo a tomar en cuenta de un operario nuevo ingreso es decir: \n\n'+
-        '5.1 Si las bolsas de marzo se entregan el 12 de abril la tolerancia es que ese operario debio ingresar antes del 11 de marzo para recibir bolsa\n\n'+
+        ' 5.1 Si las bolsas de marzo se entregan el 12 de abril la tolerancia es que ese operario debio ingresar antes del 11 de marzo para recibir bolsa\n\n'+
         '6.  Sabiendo Esto entonces debemos tomar en cuenta que las fechas se escriben en un formato donde comienza por el año-mes-dia\n\n'+
         '7.  Quedaria de esta forma YYYY-MM-DD \n\n'+
         '8. Aqui tienes un ejemplo de como generar el archivo de las bolsas sabiendo todo esto ejemplificando con el mes de marzo:\n\n\n'+
@@ -473,60 +473,80 @@ def id(update, context):
     chat_id = update.effective_chat.id
     print(f"Chat ID is: {chat_id}")
 
-def movimientos(contexto):
+def movimientos(update, context):
   global changes
   global worksheet1
   global worksheet2
+  global celdas
   celdas = []
   cambio1 = []
   cambio2 = []
   if len(changes)>0:
 
     for change in changes:
+      global movimiento
       fila = change.row
-      id = worksheet2.cell(fila, 2).value
+      id = worksheet2.cell(fila, 3).value
       id = int(id)
-      movimiento = worksheet2.cell(fila, 5).value
-      nombre = worksheet2.cell(fila, 6).value
-      cedula = worksheet2.cell(fila, 7).value
-      telefono = worksheet2.cell(fila, 9).value
-      fecha = worksheet2.cell(fila, 10).value
-      realizado = worksheet2.cell(fila,12).value
+    
+      movimiento = worksheet2.cell(fila, 6).value
+      
+      nombre = worksheet2.cell(fila, 7).value
+      cedula = worksheet2.cell(fila, 8).value
+      telefono = worksheet2.cell(fila, 10).value
+      fecha = worksheet2.cell(fila, 11).value
+      realizado = worksheet2.cell(fila,13).value
       
       if movimiento == "NUEVO INGRESO" and realizado != "MOVIMIENTO REALIZADO":
+        puesto = worksheet2.cell(fila, 5).value
         worksheet1.update_cell(id + 1, 4, nombre)  # Cambiar nombre
         worksheet1.update_cell(id + 1, 5, "'" + cedula) # Cambiar cédula
         worksheet1.update_cell(id + 1, 6, "ACTIVO") # Cambiar status
         worksheet1.update_cell(id + 1, 12, telefono) # Cambiar teléfono
         worksheet1.update_cell(id + 1, 13, "'" + fecha)
-        worksheet2.update_cell(fila, 12, "MOVIMIENTO REALIZADO")
-        contexto.bot.send_message(chat_id=-998948676, text="✅ Los Nuevos ingresos ya se encuentran agregados a la APP")
+        worksheet2.update_cell(fila, 13, "MOVIMIENTO REALIZADO")
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅ Se realizo el nuevo ingreso de {nombre} en {puesto}")
       
-      elif (movimiento == "RENUNCIA" or movimiento == "CULMINACION DE CONTRATO") and realizado != "MOVIMIENTO REALIZADO":
+      elif movimiento == "RENUNCIA" and realizado != "MOVIMIENTO REALIZADO":
+        puesto = worksheet2.cell(fila, 5).value 
         worksheet1.update_cell(id + 1, 4, "PENDIENTE POR INGRESO")  # Cambiar nombre
         worksheet1.update_cell(id + 1, 5, "NO APLICA") # Cambiar cédula
         worksheet1.update_cell(id + 1, 6, "INACTIVO")
         worksheet1.update_cell(id + 1, 12, "NO APLICA") # Cambiar teléfono
         worksheet1.update_cell(id + 1, 13, "'" + fecha)   # Cambiar fecha ingreso
         worksheet1.update_cell(id + 1, 14, " ") # Cambiar foto en blanco
-        worksheet2.update_cell(fila, 12, "MOVIMIENTO REALIZADO")
-        contexto.bot.send_message(chat_id=-998948676, text="✅ Se realizaron Culminaciones de contrato o se crearon renuncas asi que, quedaron vacantes disponibles")
+        worksheet2.update_cell(fila, 13, "MOVIMIENTO REALIZADO")
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅ Operario {nombre} manifiesta su renuncia quedando un puesto vacante en {puesto}.")
       
+      elif movimiento == "CULMINACION DE CONTRATO" and realizado != "MOVIMIENTO REALIZADO":
+        puesto = worksheet2.cell(fila, 5).value
+        worksheet1.update_cell(id + 1, 4, "PENDIENTE POR INGRESO")  # Cambiar nombre
+        worksheet1.update_cell(id + 1, 5, "NO APLICA") # Cambiar cédula
+        worksheet1.update_cell(id + 1, 6, "INACTIVO")
+        worksheet1.update_cell(id + 1, 12, "NO APLICA") # Cambiar teléfono
+        worksheet1.update_cell(id + 1, 13, "'" + fecha)   # Cambiar fecha ingreso
+        worksheet1.update_cell(id + 1, 14, " ") # Cambiar foto en blanco
+        worksheet2.update_cell(fila, 13, "MOVIMIENTO REALIZADO")
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅ Se realizo la culminacion de contrato a {nombre} por mal desempeño quedando un puesto vacante en {puesto}.")      
+
       elif movimiento == "CIERRE DE AGENCIA" and realizado != "MOVIMIENTO REALIZADO":
+        puesto = worksheet2.cell(fila, 5).value
         worksheet1.update_cell(id + 1, 4, "CERRADA")  # Cambiar nombre
         worksheet1.update_cell(id + 1, 5, "NO APLICA") # Cambiar cédula
         worksheet1.update_cell(id + 1, 6, "INACTIVO") # Cambiar status
         worksheet1.update_cell(id + 1, 12, "NO APLICA") # Cambiar teléfono
         worksheet1.update_cell(id + 1, 14, " ") # Cambiar foto en blanco
-        worksheet2.update_cell(fila, 12, "MOVIMIENTO REALIZADO")
-        contexto.bot.send_message(chat_id=-998948676, text="✅ Se realizo correctamente el cierre de la Agencia")
+        worksheet2.update_cell(fila, 13, "MOVIMIENTO REALIZADO")
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅ La agencia {puesto} cerro sus instalaciones el dia de hoy")
       
       elif movimiento == "CAMBIO INDIVIDUAL" and realizado != "MOVIMIENTO REALIZADO":
+        puesto = worksheet2.cell(fila, 5).value
         buscar = worksheet1.find(cedula)
         celda = buscar.row
         NOMBRE = worksheet1.cell(celda, 4).value
-        foto = worksheet1.cell(celda, 14).value
         fecha = worksheet1.cell(celda, 13).value
+        foto = worksheet1.cell(celda, 14).value
+        
         worksheet1.update_cell(id + 1, 4, NOMBRE)  # Cambiar nombre
         worksheet1.update_cell(id + 1, 5, "'" + cedula) # Cambiar cédula
         worksheet1.update_cell(id + 1, 6, "ACTIVO") # Cambiar status
@@ -537,15 +557,17 @@ def movimientos(contexto):
         worksheet1.update_cell(celda,5,"NO APLICA")
         worksheet1.update_cell(celda,6,"INACTIVO")
         worksheet1.update_cell(celda,12,"NO APLICA")
-        worksheet2.update_cell(fila, 12, "MOVIMIENTO REALIZADO")
-        contexto.bot.send_message(chat_id=-998948676, text="✅ Se realizaron correctamente el Cambios de operarios a otraos puestos de trabajo")
+        worksheet2.update_cell(fila, 13, "MOVIMIENTO REALIZADO")
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅ Se realizo el cambio del operario {NOMBRE} a {puesto}.")
       
       elif movimiento == "CAMBIO EN CONJUNTO" and realizado != "MOVIMIENTO REALIZADO":
         buscar = worksheet1.find(cedula)
         celda = buscar.row
         celdas.append(celda)
-        worksheet2.update_cell(fila, 12, "MOVIMIENTO REALIZADO")
+        worksheet2.update_cell(fila, 13, "MOVIMIENTO REALIZADO")
         if len(celdas) == 2:
+          global NOMBRE1
+          global NOMBRE2
           NOMBRE1 = worksheet1.cell(celdas[0], 4).value
           cambio1.append(NOMBRE1)
           cedula = worksheet1.cell(celdas[0], 5).value
@@ -581,9 +603,12 @@ def movimientos(contexto):
           worksheet1.update_cell(celdas[1], 12, cambio1[2])
           worksheet1.update_cell(celdas[1], 13, "'" + cambio1[3])
           worksheet1.update_cell(celdas[1], 14, cambio1[4]) 
-        contexto.bot.send_message(chat_id=-998948676, text="✅ Se realizo correctamente el movimiento de los cambio en conjunto de los operarios \n")
+          context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅ Se realizo correctamente el cambio en conjunto de los operarios {NOMBRE1} y {NOMBRE2} del dia actual.")
+
   else:
-    contexto.bot.send_message(chat_id=-998948676, text=f"✅ No hay Movimientos creados para el dia de hoy")
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅ No hay Movimientos creados para el dia de hoy")
+
+
 def recordatorio(contexto):
   global anti_join2 
   now = datetime.now().strftime("%I:%M %p")
@@ -613,12 +638,13 @@ def recordar(context):
     mensaje_incidencias = f"A las {now}, los operarios fueron cargados exitosamente ✅\n " "Proceso Automatizado Creamos equipos a tus Servicios"
     context.bot.send_message(chat_id=-998948676, text=mensaje_incidencias)
 def Contacto(update, contexto):
-  mensaje= "Informacion del Coordinador de Datos. \n\n\n" "Telefono: +584126050914 \n\n" "Correo: gustavoserviplus@gmail.com \n\n" "Lindedin: https://www.linkedin.com/in/gboada23/ \n\n" "Github: https://github.com/gboada23 \n"
+  mensaje= "Informacion del Coordinador de Datos. \n\n\n" "Telefono: +584142414189 \n\n" "Correo: gustavoserviplus@gmail.com \n\n" "Lindedin: https://www.linkedin.com/in/gboada23/ \n\n" "Github: https://github.com/gboada23 \n"
   contexto.bot.send_message(chat_id=update.effective_chat.id, text=mensaje)
 if __name__=='__main__':
   updater = Updater(token, use_context=True)
   dp = updater.dispatcher
   dp.add_handler(CommandHandler('start', start))
+  dp.add_handler(CommandHandler('movimientos', movimientos))
   dp.add_handler(CommandHandler('Contacto', Contacto))
   dp.add_handler(CommandHandler('id', id))
   dp.add_handler(CommandHandler('Incidencias', Incidencias))
@@ -645,19 +671,20 @@ if __name__=='__main__':
   dp.add_handler(CommandHandler('Archivo_bolsas', Archivo_bolsas))
   dp.add_handler(CommandHandler('Bolsas', Bolsas, pass_args=True))
   job_queue = updater.job_queue
-  job_queue.run_repeating(actualizar, interval=300, first=0)
-  job_queue.run_daily(movimientos, days=(0, 1, 2, 3, 4), time=dt_time(hour=16, minute=30, second=0))
+ # job_queue.run_repeating(actualizar, interval=300, first=0)
+  # 16:30 quiere decir 1:30 pm por la GTM
+  #job_queue.run_daily(movimientos, days=(0, 1, 2, 3, 4), time=dt_time(hour=17, minute=11, second=0))
   job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=16, minute=50, second=0))
   job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=17, minute=0, second=0))
-  job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=18, minute=20, second=0))
-  job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=18, minute=30, second=0))
-  job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=19, minute=50, second=0))
-  job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=20, minute=0, second=0))
+  job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=18, minute=50, second=0))
+  job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=19, minute=0, second=0))
   job_queue.run_daily(recordatorio, days=(0, 1, 2, 3, 4), time=dt_time(hour=20, minute=50, second=0))
   job_queue.run_daily(recordar, days=(0, 1, 2, 3, 4), time=dt_time(hour=21, minute=0, second=0))
   dp.add_error_handler(error)
   actualizar(contexto)
   job_queue.run_repeating(actualizar, interval=180, first=0)
   updater.start_polling()
+  global movimiento
+  global worksheet1
   print('Actualizo la data cada 3 minutos')
   updater.idle()
